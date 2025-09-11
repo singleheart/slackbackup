@@ -1,0 +1,5 @@
+.DS_Store
+.python-version
+pyproject.toml
+uv.lock
+slack_backup/
