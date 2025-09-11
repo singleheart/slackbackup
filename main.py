@@ -9,7 +9,6 @@ from tqdm import tqdm
 # ---------- 설정 ----------
 DEFAULT_TYPES = ["im", "mpim", "private_channel"]  # DM/그룹DM/프채
 PAGE_LIMIT = 1000  # Slack 최대 1000
-OUTSTRUCT = "jsonl"  # jsonl | json
 DOWNLOAD_FILES = True
 
 # ---------- 유틸 ----------
@@ -183,12 +182,7 @@ class SlackBackup:
             }
             (cdir / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
 
-            if OUTSTRUCT == "jsonl":
-                with open(cdir / "messages.jsonl", "w", encoding="utf-8") as fp:
-                    for m in sorted(out_msgs, key=lambda x: float(x["ts"])):
-                        fp.write(json.dumps(m, ensure_ascii=False) + "\n")
-            else:
-                (cdir / "messages.json").write_text(json.dumps(sorted(out_msgs, key=lambda x: float(x["ts"])), ensure_ascii=False, indent=2), encoding="utf-8")
+            (cdir / "messages.json").write_text(json.dumps(sorted(out_msgs, key=lambda x: float(x["ts"])), ensure_ascii=False, indent=2), encoding="utf-8")
 
             index.append({"id": cid, "label": label, "dir": str(cdir)})
 
