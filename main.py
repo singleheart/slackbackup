@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
-import os, json, time, argparse, re, pathlib, sys, math
-from typing import Dict, List
+import os, json, time, argparse, re, pathlib, sys
+from typing import List
 import requests
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 from tqdm import tqdm
 
 # ---------- 설정 ----------
-DEFAULT_TYPES = ["im", "mpim", "private_channel"]  # DM/그룹DM/프채
 PAGE_LIMIT = 1000  # Slack 최대 1000
-DOWNLOAD_FILES = True
+DOWNLOAD_FILES = False
 
 # ---------- 유틸 ----------
 def sanitize(name: str) -> str:
@@ -28,12 +27,13 @@ def backoff_retry(func, *args, **kwargs):
 
 # ---------- 수집기 ----------
 class SlackBackup:
-    def __init__(self, token: str, outdir: str, types: List[str], oldest: float = None, latest: float = None):
+    def __init__(self, token: str, outdir: str, types: List[str], channel_id: str = None, oldest: float = None, latest: float = None):
         self.client = WebClient(token=token)
         self.token = token
         self.outdir = pathlib.Path(outdir)
         self.outdir.mkdir(parents=True, exist_ok=True)
         self.types = types
+        self.channel_id = channel_id
         self.oldest = oldest
         self.latest = latest
         self.user_map = {}  # user_id -> profile dict
@@ -59,6 +59,11 @@ class SlackBackup:
             if not cursor:
                 break
         return conversations
+
+    def get_channel_info(self, channel_id: str):
+        """특정 채널의 정보를 가져옵니다."""
+        resp = backoff_retry(self.client.conversations_info, channel=channel_id)
+        return resp["channel"]
 
     def conv_label(self, conv) -> str:
         # DM: 상대 유저명, MPIM: 멤버명 조합, 프채: 채널명
@@ -138,7 +143,19 @@ class SlackBackup:
 
     def run(self):
         self.load_users()
-        conversations = self.list_conversations()
+
+        # 특정 채널 ID가 주어진 경우 해당 채널만 처리
+        if self.channel_id:
+            try:
+                conv = self.get_channel_info(self.channel_id)
+                conversations = [conv]
+                print(f"특정 채널 백업: {conv.get('name', self.channel_id)}")
+            except SlackApiError as e:
+                print(f"ERROR: 채널 {self.channel_id}를 찾을 수 없습니다: {e}", file=sys.stderr)
+                sys.exit(1)
+        else:
+            conversations = self.list_conversations()
+
         index = []
         for conv in tqdm(conversations, desc="Conversations"):
             cid = conv["id"]
@@ -192,6 +209,7 @@ def parse_args():
     ap = argparse.ArgumentParser(description="Slack DM/Private backup via Web API")
     ap.add_argument("--out", required=True, help="Output directory")
     ap.add_argument("--types", default="im,mpim,private_channel", help="Comma sep: im,mpim,private_channel")
+    ap.add_argument("--channel-id", default=None, help="Specific channel ID to backup (if provided, only this channel will be backed up)")
     ap.add_argument("--oldest", type=float, default=None, help="Oldest ts (float seconds). Omit for all")
     ap.add_argument("--latest", type=float, default=None, help="Latest ts (float seconds). Omit for now")
     return ap.parse_args()
@@ -202,6 +220,13 @@ if __name__ == "__main__":
         print("ERROR: export SLACK_USER_TOKEN='xoxp-...'", file=sys.stderr)
         sys.exit(1)
     args = parse_args()
-    backup = SlackBackup(token, args.out, [t.strip() for t in args.types.split(",") if t.strip()], oldest=args.oldest, latest=args.latest)
+    backup = SlackBackup(
+        token,
+        args.out,
+        [t.strip() for t in args.types.split(",") if t.strip()],
+        channel_id=getattr(args, 'channel_id', None),
+        oldest=args.oldest,
+        latest=args.latest
+    )
     backup.run()
 
