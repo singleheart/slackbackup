@@ -66,29 +66,17 @@ class SlackBackup:
         return resp["channel"]
 
     def conv_label(self, conv) -> str:
-        # DM: 상대 유저명, MPIM: 멤버명 조합, 프채: 채널명
-        if conv.get("is_im"):
-            # im 객체는 상대 user id가 conv['user']로 올 수 있음 (토큰 사용자와의 1:1)
-            uid = conv.get("user")
-            if uid and uid in self.user_map:
-                name = self.user_map[uid]["profile"].get("display_name") or self.user_map[uid]["profile"].get("real_name") or self.user_map[uid].get("name") or uid
-            else:
-                name = "dm_" + conv["id"]
-            return sanitize(name)
-        elif conv.get("is_mpim"):
-            # 멤버 리스트로 라벨 구성
-            members = self.get_members(conv["id"])
-            names = []
-            for uid in members:
-                if uid in self.user_map:
-                    prof = self.user_map[uid]["profile"]
-                    names.append(prof.get("display_name") or prof.get("real_name") or self.user_map[uid].get("name") or uid)
-                else:
-                    names.append(uid)
-            return sanitize("__".join(sorted(names))[:80])
-        else:
-            # private/public channel
-            return sanitize(conv.get("name") or conv["id"])
+        """채널 타입에 따른 폴더명을 생성합니다.
+
+        - DM/그룹DM: 채널 ID 사용
+        - 일반 채널: 채널명 사용 (채널명이 없으면 ID 사용)
+        """
+        # DM이나 그룹DM인 경우 채널 ID 사용
+        if conv.get("is_im") or conv.get("is_mpim"):
+            return conv["id"]
+
+        # 일반 채널인 경우 채널명 사용 (특수문자 제거)
+        return sanitize(conv.get("name") or conv["id"])
 
     def get_members(self, channel_id: str) -> List[str]:
         out, cursor = [], None
