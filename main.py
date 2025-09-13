@@ -74,7 +74,7 @@ class SlackBackup:
                 name = self.user_map[uid]["profile"].get("display_name") or self.user_map[uid]["profile"].get("real_name") or self.user_map[uid].get("name") or uid
             else:
                 name = "dm_" + conv["id"]
-            return f"DM_{sanitize(name)}"
+            return sanitize(name)
         elif conv.get("is_mpim"):
             # 멤버 리스트로 라벨 구성
             members = self.get_members(conv["id"])
@@ -85,10 +85,10 @@ class SlackBackup:
                     names.append(prof.get("display_name") or prof.get("real_name") or self.user_map[uid].get("name") or uid)
                 else:
                     names.append(uid)
-            return "GDM_" + sanitize("__".join(sorted(names))[:80])
+            return sanitize("__".join(sorted(names))[:80])
         else:
-            # private channel
-            return "PRV_" + sanitize(conv.get("name") or conv["id"])
+            # private/public channel
+            return sanitize(conv.get("name") or conv["id"])
 
     def get_members(self, channel_id: str) -> List[str]:
         out, cursor = [], None
@@ -160,7 +160,7 @@ class SlackBackup:
         for conv in tqdm(conversations, desc="Conversations"):
             cid = conv["id"]
             label = self.conv_label(conv)
-            cdir = self.outdir / f"{label}__{cid}"
+            cdir = self.outdir / label
             cdir.mkdir(parents=True, exist_ok=True)
 
             # 메시지 수집 + 스레드 확장
