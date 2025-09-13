@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import os, json, time, argparse, re, pathlib, sys
-from typing import List
+from typing import List, Dict
+from datetime import datetime, timezone
+from collections import defaultdict
 import requests
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
@@ -13,6 +15,35 @@ DOWNLOAD_FILES = False
 # ---------- 유틸 ----------
 def sanitize(name: str) -> str:
     return re.sub(r'[^a-zA-Z0-9._-]+', '_', name)
+
+def timestamp_to_date(ts: str) -> str:
+    """타임스탬프를 UTC 날짜(YYYY-MM-DD)로 변환"""
+    try:
+        # Slack timestamp는 Unix timestamp (초 단위, 소수점 포함)
+        timestamp = float(ts)
+        dt = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+        return dt.strftime('%Y-%m-%d')
+    except (ValueError, TypeError):
+        print(f"Warning: Invalid timestamp {ts}")
+        return "unknown-date"
+
+def split_messages_by_date(messages: List[dict]) -> Dict[str, List[dict]]:
+    """메시지를 날짜별로 그룹화"""
+    date_groups = defaultdict(list)
+
+    for msg in messages:
+        ts = msg.get("ts")
+        if not ts:
+            continue
+
+        date_str = timestamp_to_date(ts)
+        date_groups[date_str].append(msg)
+
+    # 각 날짜 그룹 내에서 시간순 정렬
+    for date_str in date_groups:
+        date_groups[date_str].sort(key=lambda x: float(x.get("ts", "0")))
+
+    return dict(date_groups)
 
 def backoff_retry(func, *args, **kwargs):
     while True:
@@ -72,7 +103,7 @@ class SlackBackup:
         - 일반 채널: 채널명 사용 (채널명이 없으면 ID 사용)
         """
         # DM이나 그룹DM인 경우 채널 ID 사용
-        if conv.get("is_im") or conv.get("is_mpim"):
+        if conv.get("is_im"):
             return conv["id"]
 
         # 일반 채널인 경우 채널명 사용 (특수문자 제거)
@@ -144,7 +175,12 @@ class SlackBackup:
         else:
             conversations = self.list_conversations()
 
-        index = []
+        # 타입별 메타데이터 수집을 위한 리스트
+        channels_meta = []  # 채널
+        groups_meta = []    # 그룹
+        dms_meta = []       # DM
+        mpims_meta = []     # 다중대화(그룹DM)
+
         for conv in tqdm(conversations, desc="Conversations"):
             cid = conv["id"]
             label = self.conv_label(conv)
@@ -174,24 +210,69 @@ class SlackBackup:
                         except Exception as e:
                             print(f"[WARN] file download failed: {e}", file=sys.stderr)
 
-            # 저장
-            meta = {
-                "id": cid,
-                "label": label,
-                "type_flags": {
-                    "is_im": conv.get("is_im", False),
-                    "is_mpim": conv.get("is_mpim", False),
-                    "is_private": conv.get("is_private", False),
-                },
-                "member_ids": self.get_members(cid) if not conv.get("is_im") else [conv.get("user")],
-            }
-            (cdir / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+            # 메타데이터 생성
+            meta = {"id": cid}
 
-            (cdir / "messages.json").write_text(json.dumps(sorted(out_msgs, key=lambda x: float(x["ts"])), ensure_ascii=False, indent=2), encoding="utf-8")
+            # 생성 시간 추가
+            if conv.get("created"):
+                meta["created"] = conv["created"]
 
-            index.append({"id": cid, "label": label, "dir": str(cdir)})
+            # 멤버 리스트 가져오기 - 모든 타입에서 get_members 사용
+            members = self.get_members(cid)
+            meta["members"] = members
 
-        (self.outdir / "_index.json").write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
+            # 타입에 따라 메타데이터 구성 및 분류
+            if conv.get("is_im"):
+                # DM - 기본 메타데이터만
+                dms_meta.append(meta)
+            else:
+                # 채널/그룹/다중대화 - 공통 메타데이터 추가
+                meta["name"] = label
+                if conv.get("creator"):
+                    meta["creator"] = conv["creator"]
+                if "is_archived" in conv:
+                    meta["is_archived"] = conv["is_archived"]
+                if "is_general" in conv:
+                    meta["is_general"] = conv["is_general"]
+                if conv.get("topic"):
+                    meta["topic"] = conv["topic"]
+                if conv.get("purpose"):
+                    meta["purpose"] = conv["purpose"]
+
+                # 타입별 분류
+                if conv.get("is_mpim"):
+                    # 다중대화(그룹DM)
+                    mpims_meta.append(meta)
+                elif conv.get("is_private"):
+                    # 그룹 (프라이빗 채널)
+                    groups_meta.append(meta)
+                else:
+                    # 채널 (공개 채널)
+                    channels_meta.append(meta)
+
+            # 메시지를 날짜별로 분할하여 저장
+            if out_msgs:
+                date_groups = split_messages_by_date(out_msgs)
+                for date_str, date_messages in date_groups.items():
+                    date_file = cdir / f"{date_str}.json"
+                    try:
+                        with open(date_file, 'w', encoding='utf-8') as f:
+                            json.dump(date_messages, f, ensure_ascii=False, indent=2)
+                    except Exception as e:
+                        print(f"[WARN] Failed to write {date_file}: {e}", file=sys.stderr)
+
+        # 타입별 메타데이터 파일 저장
+        if channels_meta:
+            (self.outdir / "channels.json").write_text(json.dumps(channels_meta, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        if groups_meta:
+            (self.outdir / "groups.json").write_text(json.dumps(groups_meta, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        if dms_meta:
+            (self.outdir / "dms.json").write_text(json.dumps(dms_meta, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        if mpims_meta:
+            (self.outdir / "mpims.json").write_text(json.dumps(mpims_meta, ensure_ascii=False, indent=2), encoding="utf-8")
 
 def parse_args():
     ap = argparse.ArgumentParser(description="Slack DM/Private backup via Web API")
