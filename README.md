@@ -19,12 +19,14 @@
 ## 사용법
 
 ### 기본 설정
+
 ```bash
 uv add slack_sdk requests tqdm
 export SLACK_USER_TOKEN='xoxp-***'
 ```
 
 ### 전체 백업
+
 ```bash
 # DM, 그룹DM, 프라이빗 채널 백업 (기본값)
 uv run main.py --out ./slack_backup
@@ -34,6 +36,7 @@ uv run main.py --out ./slack_backup --types im,mpim,private_channel,public_chann
 ```
 
 ### 특정 대화 백업
+
 ```bash
 # 채널 ID로 특정 채널만 백업
 uv run main.py --out ./slack_backup --conversation-id C1234567890
@@ -46,6 +49,7 @@ uv run main.py --out ./slack_backup --conversation-id G1234567890
 ```
 
 ### 기간 제한 백업
+
 ```bash
 # 특정 기간의 메시지만 백업 (Unix 타임스탬프)
 uv run main.py --out ./slack_backup --oldest 1672531200 --latest 1704067200
@@ -83,6 +87,7 @@ slack_backup/
 ### 메시지 파일
 
 메시지는 UTC 기준으로 날짜별로 분할되어 저장됩니다:
+
 - 파일명: `YYYY-MM-DD.json` (예: `2024-01-15.json`)
 - 각 파일에는 해당 날짜의 모든 메시지가 시간순으로 정렬되어 저장
 - 스레드 메시지도 함께 포함
@@ -112,11 +117,13 @@ python add_tokens_to_files.py --help
 ```
 
 ### 처리되는 URL
+
 - `url_private`: 프라이빗 파일 URL
 - `url_private_download`: 다운로드 URL
 - `thumb_*`: 모든 썸네일 URL
 
 ### 주의사항
+
 - 이미 토큰이 있는 URL은 수정하지 않음
 - 원본 파일 직접 수정 (중요한 데이터는 사전 백업 권장)
 - `--dry-run` 옵션으로 안전하게 미리보기 가능
