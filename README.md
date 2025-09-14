@@ -33,13 +33,16 @@ uv run main.py --out ./slack_backup
 uv run main.py --out ./slack_backup --types im,mpim,private_channel,public_channel
 ```
 
-### 특정 채널 백업
+### 특정 대화 백업
 ```bash
 # 채널 ID로 특정 채널만 백업
-uv run main.py --out ./slack_backup --channel-id C1234567890
+uv run main.py --out ./slack_backup --conversation-id C1234567890
 
 # DM ID로 특정 DM만 백업
-uv run main.py --out ./slack_backup --channel-id D1234567890
+uv run main.py --out ./slack_backup --conversation-id D1234567890
+
+# 그룹DM ID로 특정 그룹대화만 백업
+uv run main.py --out ./slack_backup --conversation-id G1234567890
 ```
 
 ### 기간 제한 백업

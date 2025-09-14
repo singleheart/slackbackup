@@ -58,13 +58,13 @@ def backoff_retry(func, *args, **kwargs):
 
 # ---------- 수집기 ----------
 class SlackBackup:
-    def __init__(self, token: str, outdir: str, types: List[str], channel_id: str = None, oldest: float = None, latest: float = None):
+    def __init__(self, token: str, outdir: str, types: List[str], conversation_id: str = None, oldest: float = None, latest: float = None):
         self.client = WebClient(token=token)
         self.token = token
         self.outdir = pathlib.Path(outdir)
         self.outdir.mkdir(parents=True, exist_ok=True)
         self.types = types
-        self.channel_id = channel_id
+        self.conversation_id = conversation_id
         self.oldest = oldest
         self.latest = latest
         self.user_map = {}  # user_id -> profile dict
@@ -163,14 +163,15 @@ class SlackBackup:
     def run(self):
         self.load_users()
 
-        # 특정 채널 ID가 주어진 경우 해당 채널만 처리
-        if self.channel_id:
+        # 특정 대화 ID가 주어진 경우 해당 대화만 처리
+        if self.conversation_id:
             try:
-                conv = self.get_channel_info(self.channel_id)
+                conv = self.get_channel_info(self.conversation_id)
                 conversations = [conv]
-                print(f"특정 채널 백업: {conv.get('name', self.channel_id)}")
+                conv_name = conv.get('name', self.conversation_id)
+                print(f"특정 대화 백업: {conv_name}")
             except SlackApiError as e:
-                print(f"ERROR: 채널 {self.channel_id}를 찾을 수 없습니다: {e}", file=sys.stderr)
+                print(f"ERROR: 대화 {self.conversation_id}를 찾을 수 없습니다: {e}", file=sys.stderr)
                 sys.exit(1)
         else:
             conversations = self.list_conversations()
@@ -278,7 +279,7 @@ def parse_args():
     ap = argparse.ArgumentParser(description="Slack DM/Private backup via Web API")
     ap.add_argument("--out", required=True, help="Output directory")
     ap.add_argument("--types", default="im,mpim,private_channel", help="Comma sep: im,mpim,private_channel")
-    ap.add_argument("--channel-id", default=None, help="Specific channel ID to backup (if provided, only this channel will be backed up)")
+    ap.add_argument("--conversation-id", default=None, help="Specific conversation ID to backup (channel/DM/group - if provided, only this conversation will be backed up)")
     ap.add_argument("--oldest", type=float, default=None, help="Oldest ts (float seconds). Omit for all")
     ap.add_argument("--latest", type=float, default=None, help="Latest ts (float seconds). Omit for now")
     return ap.parse_args()
@@ -293,7 +294,7 @@ if __name__ == "__main__":
         token,
         args.out,
         [t.strip() for t in args.types.split(",") if t.strip()],
-        channel_id=getattr(args, 'channel_id', None),
+        conversation_id=getattr(args, 'conversation_id', None),
         oldest=args.oldest,
         latest=args.latest
     )
