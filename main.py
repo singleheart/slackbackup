@@ -95,6 +95,30 @@ class SlackBackup:
         resp = backoff_retry(self.client.conversations_info, channel=channel_id)
         return resp["channel"]
 
+    def load_existing_metadata(self, filename: str) -> List[dict]:
+        """기존 메타데이터 파일을 읽어옵니다."""
+        filepath = self.outdir / filename
+        if filepath.exists():
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except (json.JSONDecodeError, Exception) as e:
+                print(f"[WARN] Failed to load existing {filename}: {e}", file=sys.stderr)
+                return []
+        return []
+
+    def merge_metadata(self, existing_meta: List[dict], new_meta: List[dict]) -> List[dict]:
+        """기존 메타데이터와 새로운 메타데이터를 병합합니다. ID 기준으로 중복을 제거합니다."""
+        # 기존 메타데이터를 ID로 인덱싱
+        existing_by_id = {item["id"]: item for item in existing_meta}
+
+        # 새로운 메타데이터를 추가하거나 업데이트
+        for item in new_meta:
+            existing_by_id[item["id"]] = item
+
+        # ID 순으로 정렬하여 반환
+        return sorted(existing_by_id.values(), key=lambda x: x["id"])
+
     def conv_label(self, conv) -> str:
         """채널 타입에 따른 폴더명을 생성합니다.
 
@@ -238,11 +262,23 @@ class SlackBackup:
                     except Exception as e:
                         print(f"[WARN] Failed to write {date_file}: {e}", file=sys.stderr)
 
-        # 타입별 메타데이터 파일 저장 (빈 배열이라도 항상 생성)
-        (self.outdir / "channels.json").write_text(json.dumps(channels_meta, ensure_ascii=False, indent=2), encoding="utf-8")
-        (self.outdir / "groups.json").write_text(json.dumps(groups_meta, ensure_ascii=False, indent=2), encoding="utf-8")
-        (self.outdir / "dms.json").write_text(json.dumps(dms_meta, ensure_ascii=False, indent=2), encoding="utf-8")
-        (self.outdir / "mpims.json").write_text(json.dumps(mpims_meta, ensure_ascii=False, indent=2), encoding="utf-8")
+        # 기존 메타데이터 로드 및 병합
+        existing_channels = self.load_existing_metadata("channels.json")
+        existing_groups = self.load_existing_metadata("groups.json")
+        existing_dms = self.load_existing_metadata("dms.json")
+        existing_mpims = self.load_existing_metadata("mpims.json")
+
+        # 새로운 데이터와 기존 데이터 병합
+        merged_channels = self.merge_metadata(existing_channels, channels_meta)
+        merged_groups = self.merge_metadata(existing_groups, groups_meta)
+        merged_dms = self.merge_metadata(existing_dms, dms_meta)
+        merged_mpims = self.merge_metadata(existing_mpims, mpims_meta)
+
+        # 병합된 메타데이터 파일 저장
+        (self.outdir / "channels.json").write_text(json.dumps(merged_channels, ensure_ascii=False, indent=2), encoding="utf-8")
+        (self.outdir / "groups.json").write_text(json.dumps(merged_groups, ensure_ascii=False, indent=2), encoding="utf-8")
+        (self.outdir / "dms.json").write_text(json.dumps(merged_dms, ensure_ascii=False, indent=2), encoding="utf-8")
+        (self.outdir / "mpims.json").write_text(json.dumps(merged_mpims, ensure_ascii=False, indent=2), encoding="utf-8")
 
 def parse_args():
     ap = argparse.ArgumentParser(description="Slack DM/Private backup via Web API")
