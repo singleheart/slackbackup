@@ -262,18 +262,11 @@ class SlackBackup:
                     except Exception as e:
                         print(f"[WARN] Failed to write {date_file}: {e}", file=sys.stderr)
 
-        # 타입별 메타데이터 파일 저장
-        if channels_meta:
-            (self.outdir / "channels.json").write_text(json.dumps(channels_meta, ensure_ascii=False, indent=2), encoding="utf-8")
-
-        if groups_meta:
-            (self.outdir / "groups.json").write_text(json.dumps(groups_meta, ensure_ascii=False, indent=2), encoding="utf-8")
-
-        if dms_meta:
-            (self.outdir / "dms.json").write_text(json.dumps(dms_meta, ensure_ascii=False, indent=2), encoding="utf-8")
-
-        if mpims_meta:
-            (self.outdir / "mpims.json").write_text(json.dumps(mpims_meta, ensure_ascii=False, indent=2), encoding="utf-8")
+        # 타입별 메타데이터 파일 저장 (빈 배열이라도 항상 생성)
+        (self.outdir / "channels.json").write_text(json.dumps(channels_meta, ensure_ascii=False, indent=2), encoding="utf-8")
+        (self.outdir / "groups.json").write_text(json.dumps(groups_meta, ensure_ascii=False, indent=2), encoding="utf-8")
+        (self.outdir / "dms.json").write_text(json.dumps(dms_meta, ensure_ascii=False, indent=2), encoding="utf-8")
+        (self.outdir / "mpims.json").write_text(json.dumps(mpims_meta, ensure_ascii=False, indent=2), encoding="utf-8")
 
 def parse_args():
     ap = argparse.ArgumentParser(description="Slack DM/Private backup via Web API")
