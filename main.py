@@ -10,7 +10,6 @@ from tqdm import tqdm
 
 # ---------- 설정 ----------
 PAGE_LIMIT = 1000  # Slack 최대 1000
-DOWNLOAD_FILES = False
 
 # ---------- 유틸 ----------
 def sanitize(name: str) -> str:
@@ -148,18 +147,6 @@ class SlackBackup:
             if not cursor: break
         return msgs
 
-    def download_file(self, fobj: dict, dest_dir: pathlib.Path):
-        url = fobj.get("url_private")
-        if not url: return
-        fname = sanitize(fobj.get("name") or fobj.get("id") or "file")
-        dest = dest_dir / fname
-        # 헤더에 Bearer 토큰 필요
-        with requests.get(url, headers={"Authorization": f"Bearer {self.token}"}, stream=True, timeout=60) as r:
-            r.raise_for_status()
-            with open(dest, "wb") as fp:
-                for chunk in r.iter_content(chunk_size=1<<20):
-                    if chunk: fp.write(chunk)
-
     def run(self):
         self.load_users()
 
@@ -199,17 +186,6 @@ class SlackBackup:
                     # (간단히 ts 기준으로 set 사용)
                     by_ts = {m["ts"]: m for m in thread}
                     out_msgs.extend([m for t,m in by_ts.items() if t != msg["ts"]])
-
-            # 파일 다운로드
-            if DOWNLOAD_FILES:
-                fdir = cdir / "files"
-                fdir.mkdir(exist_ok=True)
-                for m in out_msgs:
-                    for f in m.get("files", []) or []:
-                        try:
-                            self.download_file(f, fdir)
-                        except Exception as e:
-                            print(f"[WARN] file download failed: {e}", file=sys.stderr)
 
             # 메타데이터 생성
             meta = {"id": cid}
