@@ -86,3 +86,37 @@ slack_backup/
 - 파일명: `YYYY-MM-DD.json` (예: `2024-01-15.json`)
 - 각 파일에는 해당 날짜의 모든 메시지가 시간순으로 정렬되어 저장
 - 스레드 메시지도 함께 포함
+
+## 파일 URL 토큰 추가 도구
+
+백업된 메시지의 파일 URL에 토큰이 누락되어 접근할 수 없는 경우, 사후에 토큰을 추가할 수 있습니다.
+
+### 사용법
+
+```bash
+# 환경변수 사용 (권장)
+export SLACK_USER_TOKEN='xoxe-your-token-here'
+python add_tokens_to_files.py backup_folder/
+
+# 안전한 미리보기 모드
+python add_tokens_to_files.py backup_folder/ --dry-run
+
+# 토큰 직접 지정
+python add_tokens_to_files.py backup_folder/ --token 'xoxe-your-token-here'
+
+# 하위 폴더까지 재귀적 처리
+python add_tokens_to_files.py backup_folder/ --recursive
+
+# 자세한 사용법
+python add_tokens_to_files.py --help
+```
+
+### 처리되는 URL
+- `url_private`: 프라이빗 파일 URL
+- `url_private_download`: 다운로드 URL
+- `thumb_*`: 모든 썸네일 URL
+
+### 주의사항
+- 이미 토큰이 있는 URL은 수정하지 않음
+- 원본 파일 직접 수정 (중요한 데이터는 사전 백업 권장)
+- `--dry-run` 옵션으로 안전하게 미리보기 가능
