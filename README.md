@@ -2,19 +2,54 @@
 
 ## 준비: 앱 생성 & 권한(스코프)
 
-1. Slack 앱 생성 → OAuth & Permissions 설정에서 User Token Scopes에 아래 추가
+### 1단계: Slack 앱 생성
 
-    - `channels:read`, `channels:history` → 공개 채널 목록/이력
-    - `im:read`, `im:history` → 1:1 DM 목록/이력
-    - `mpim:read`, `mpim:history` → 그룹 DM(MPIM) 목록/이력
-    - `groups:read`, `groups:history` → 프라이빗 채널 목록/이력
-    - `users:read` → 사용자 이름/프로필 매핑
-    - `files:read` → 파일 내려받기까지 원하는 경우
-    - `pins:read` → 핀된 메시지 정보 (선택)
+1. [Slack API 사이트](https://api.slack.com/apps)에 접속
+2. **"Create New App"** 버튼 클릭
+3. **"From scratch"** 선택
+4. 앱 이름 입력 (예: "Slack Backup Tool")
+5. 백업할 워크스페이스 선택
+6. **"Create App"** 클릭
 
-2. 앱 설치(Install to Workspace) 후 User OAuth Token (보통 `xoxp-...`) 확보.
+### 2단계: OAuth 권한 설정
 
-3. (선택) 워크스페이스가 Free라면 지난 90일만 API로 노출됩니다. 유료 플랜/보존정책에 따라 범위가 달라지니 참고하세요.
+1. 왼쪽 메뉴에서 **"OAuth & Permissions"** 클릭
+2. **"Scopes"** 섹션까지 스크롤
+3. **"User Token Scopes"** 섹션에서 다음 권한들을 추가:
+
+    - `channels:read` → 공개 채널 목록 조회
+    - `channels:history` → 공개 채널 메시지 이력 조회
+    - `im:read` → 1:1 DM 목록 조회
+    - `im:history` → 1:1 DM 메시지 이력 조회
+    - `mpim:read` → 그룹 DM 목록 조회
+    - `mpim:history` → 그룹 DM 메시지 이력 조회
+    - `groups:read` → 프라이빗 채널 목록 조회
+    - `groups:history` → 프라이빗 채널 메시지 이력 조회
+    - `users:read` → 사용자 이름/프로필 정보 조회
+    - `files:read` → 파일 정보 조회 (파일 다운로드 시 필요)
+    - `pins:read` → 핀된 메시지 정보 조회 (선택사항)
+
+### 3단계: 앱 설치 및 토큰 획득
+
+1. **"OAuth & Permissions"** 페이지 상단의 **"Install to Workspace"** 버튼 클릭
+2. 권한 승인 화면에서 **"Allow"** 클릭
+3. 설치 완료 후 **"User OAuth Token"** 복사
+   - 토큰은 `xoxp-`로 시작합니다
+   - 이 토큰을 안전한 곳에 보관하세요
+
+### 4단계: 환경변수 설정
+
+획득한 토큰을 환경변수로 설정:
+
+```bash
+export SLACK_USER_TOKEN='xoxp-여기에-복사한-토큰-입력'
+```
+
+### 주의사항
+
+- **보안**: 토큰을 코드에 하드코딩하지 마세요. 반드시 환경변수를 사용하세요.
+- **권한**: 백업하려는 채널/DM에 대한 접근 권한이 있어야 합니다.
+- **제한사항**: 워크스페이스가 Free 플랜이라면 지난 90일 메시지만 API로 접근 가능합니다. 유료 플랜의 경우 보존 정책에 따라 범위가 달라집니다.
 
 ## 사용법
 
@@ -96,7 +131,7 @@ slack_backup/
 
 백업된 메시지의 파일 URL에 토큰이 누락되어 접근할 수 없는 경우, 사후에 토큰을 추가할 수 있습니다.
 
-### 사용법
+### 도구 사용법
 
 ```bash
 # 환경변수 사용 (권장)
@@ -122,7 +157,7 @@ python add_tokens_to_files.py --help
 - `url_private_download`: 다운로드 URL
 - `thumb_*`: 모든 썸네일 URL
 
-### 주의사항
+### 파일 토큰 추가 주의사항
 
 - 이미 토큰이 있는 URL은 수정하지 않음
 - 원본 파일 직접 수정 (중요한 데이터는 사전 백업 권장)
