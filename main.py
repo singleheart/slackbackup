@@ -13,7 +13,34 @@ PAGE_LIMIT = 1000  # Slack 최대 1000
 
 # ---------- 유틸 ----------
 def sanitize(name: str) -> str:
-    return re.sub(r'[^a-zA-Z0-9._-]+', '_', name)
+    """파일명으로 사용할 수 있도록 문자열을 정리합니다.
+
+    한글을 포함한 유니코드 문자는 유지하고,
+    파일시스템에서 문제가 되는 특수문자만 언더스코어로 치환합니다.
+    """
+    # 파일시스템에서 금지된 문자들: / \ : * ? " < > |
+    # 그리고 제어문자들을 언더스코어로 치환
+    forbidden_chars = r'[/\\:*?"<>|\x00-\x1f\x7f]'
+    sanitized = re.sub(forbidden_chars, '_', name)
+
+    # 연속된 언더스코어를 하나로 줄임
+    sanitized = re.sub(r'_+', '_', sanitized)
+
+    # 앞뒤 공백과 언더스코어 제거
+    sanitized = sanitized.strip(' _')
+
+    # 빈 문자열이거나 너무 긴 경우 처리
+    if not sanitized:
+        return 'unnamed_channel'
+
+    # 파일명 길이 제한 (대부분 파일시스템에서 255자 제한)
+    if len(sanitized.encode('utf-8')) > 200:  # UTF-8 바이트 기준으로 제한
+        # 안전하게 자르기 위해 문자 단위로 줄임
+        while len(sanitized.encode('utf-8')) > 200 and sanitized:
+            sanitized = sanitized[:-1]
+        sanitized = sanitized.rstrip('_')
+
+    return sanitized or 'unnamed_channel'
 
 def timestamp_to_date(ts: str) -> str:
     """타임스탬프를 UTC 날짜(YYYY-MM-DD)로 변환"""
