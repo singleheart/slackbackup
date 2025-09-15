@@ -119,6 +119,72 @@ slack_backup/
 - **dms.json**: DM들의 참여자 정보
 - **mpims.json**: 그룹DM들의 정보 (채널과 같은 메타데이터 포함)
 
+#### JSON 구조
+
+##### 1. DM 메타데이터 (dms.json)
+
+```json
+[
+  {
+    "id": "D063Q080D9Q",           // DM 채널 ID
+    "created": 1698797662,         // 생성 시간 (Unix 타임스탬프)
+    "members": [                   // 참여자 사용자 ID 목록
+      "U0642JZJHMX",
+      "U0642JZJHMX"
+    ]
+  }
+]
+```
+
+##### 2. 채널/그룹 메타데이터 (channels.json, groups.json, mpims.json)
+
+```json
+[
+  {
+    "id": "C1234567890",           // 채널 ID
+    "created": 1698797662,         // 생성 시간 (Unix 타임스탬프)
+    "members": [                   // 멤버 사용자 ID 목록
+      "U0642JZJHMX",
+      "U0643ABCDEF"
+    ],
+    "name": "general",             // 채널명 (sanitized)
+    "creator": "U0642JZJHMX",      // 생성자 사용자 ID
+    "is_archived": false,          // 아카이브 여부
+    "is_general": true,            // 일반 채널 여부
+    "topic": {                     // 채널 토픽
+      "value": "회사 공지사항",
+      "creator": "U0642JZJHMX",
+      "last_set": 1698797662
+    },
+    "purpose": {                   // 채널 목적
+      "value": "전체 공지 및 중요 소식",
+      "creator": "U0642JZJHMX",
+      "last_set": 1698797662
+    }
+  }
+]
+```
+
+##### 3. 필드 설명
+
+| 필드명 | 타입 | 설명 | 포함되는 메타데이터 |
+|--------|------|------|---------------------|
+| `id` | string | Slack 채널/DM 고유 ID | 모든 타입 |
+| `created` | number | 생성 시간 (Unix 타임스탬프) | 모든 타입 |
+| `members` | array | 참여자 사용자 ID 목록 | 모든 타입 |
+| `name` | string | 채널명 (특수문자 제거됨) | 채널/그룹/그룹DM |
+| `creator` | string | 생성자 사용자 ID | 채널/그룹/그룹DM |
+| `is_archived` | boolean | 아카이브 여부 | 채널/그룹/그룹DM |
+| `is_general` | boolean | 일반 채널 여부 | 채널/그룹/그룹DM |
+| `topic` | object | 채널 토픽 정보 | 채널/그룹/그룹DM |
+| `purpose` | object | 채널 목적 정보 | 채널/그룹/그룹DM |
+
+##### 메타데이터 주의사항
+
+- DM의 경우 `name`, `creator` 등의 추가 필드가 없습니다
+- `topic`과 `purpose`는 값이 있을 때만 포함됩니다
+- 사용자 ID는 `users.json`과 매핑하여 실제 사용자 정보를 확인할 수 있습니다
+
 ### 메시지 파일
 
 메시지는 UTC 기준으로 날짜별로 분할되어 저장됩니다:
@@ -126,6 +192,72 @@ slack_backup/
 - 파일명: `YYYY-MM-DD.json` (예: `2024-01-15.json`)
 - 각 파일에는 해당 날짜의 모든 메시지가 시간순으로 정렬되어 저장
 - 스레드 메시지도 함께 포함
+
+#### 메시지 JSON 구조
+
+```json
+[
+  {
+    "user": "U0642JZJHMX",                    // 메시지 작성자 사용자 ID
+    "type": "message",                       // 메시지 타입
+    "ts": "1705453994.016859",              // 타임스탬프 (고유 식별자)
+    "client_msg_id": "E21FBE3B-393D-4B1C-A0A4-E9B05E27448E",
+    "text": "안녕하세요!",                      // 메시지 텍스트
+    "team": "T06D25H7DLG",                  // 팀 ID
+    "user_team": "T06D25H7DLG",             // 사용자 팀 ID
+    "source_team": "T06D25H7DLG",           // 소스 팀 ID
+    "user_profile": {                        // 사용자 프로필 정보
+      "avatar_hash": "e3a81b34d7e4",
+      "image_72": "https://avatars.slack-edge.com/...",
+      "first_name": "김진",
+      "real_name": "김진",
+      "display_name": "Jay, 김진 (Foundation Model담당)",
+      "team": "E0638MW8K5M",
+      "name": "jinn.kim",
+      "is_restricted": false,
+      "is_ultra_restricted": false
+    },
+    "thread_ts": "1705453994.016859",       // 스레드 부모 타임스탬프 (스레드 메시지인 경우)
+    "reply_count": 3,                       // 답글 수 (스레드 부모인 경우)
+    "files": [                              // 첨부 파일 (있는 경우)
+      {
+        "id": "F12345678",
+        "name": "document.pdf",
+        "url_private": "https://files.slack.com/...",
+        "url_private_download": "https://files.slack.com/..."
+      }
+    ],
+    "reactions": [                          // 리액션 (있는 경우)
+      {
+        "name": "thumbsup",
+        "users": ["U0642JZJHMX", "U0643ABCDEF"],
+        "count": 2
+      }
+    ]
+  }
+]
+```
+
+#### 메시지 필드 설명
+
+| 필드명 | 타입 | 설명 |
+|--------|------|------|
+| `user` | string | 메시지 작성자의 사용자 ID |
+| `type` | string | 메시지 타입 (보통 "message") |
+| `ts` | string | 고유 타임스탬프 (메시지 식별자) |
+| `text` | string | 메시지 내용 |
+| `user_profile` | object | 메시지 작성 시점의 사용자 프로필 정보 |
+| `thread_ts` | string | 스레드 부모 메시지의 타임스탬프 (답글인 경우) |
+| `reply_count` | number | 해당 메시지에 대한 답글 수 (스레드 부모인 경우) |
+| `files` | array | 첨부된 파일 목록 |
+| `reactions` | array | 메시지에 달린 이모지 리액션 |
+
+##### 특별한 메시지 타입
+
+- 스레드 메시지: `thread_ts` 필드를 통해 부모 메시지와 연결
+- 파일 공유: `files` 배열에 파일 정보 포함
+- 편집된 메시지: `edited` 필드 포함
+- 삭제된 메시지: `subtype: "message_deleted"` 또는 `subtype: "tombstone"`
 
 ## 파일 URL 토큰 추가 도구
 
