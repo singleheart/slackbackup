@@ -223,6 +223,12 @@ class SlackBackup:
 
         # 멤버 리스트 가져오기 - 모든 타입에서 get_members 사용
         members = self.get_members(channel_id)
+
+        # 자신과의 대화(self-DM)인 경우 멤버를 복제
+        if conv.get("is_im") and len(members) == 1:
+            # DM인데 멤버가 1명이면 자신과의 대화이므로 같은 사용자를 2번 추가
+            members = [members[0], members[0]]
+
         meta["members"] = members
 
         # DM이 아닌 경우 추가 메타데이터
