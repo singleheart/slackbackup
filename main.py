@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
-import os, json, time, argparse, re, pathlib, sys
-from typing import List, Dict
-from datetime import datetime, timezone
+import argparse
+import json
+import os
+import pathlib
+import re
+import sys
+import time
 from collections import defaultdict
-import requests
+from datetime import datetime, timezone
+from typing import Dict, List
+
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 from tqdm import tqdm
@@ -84,7 +90,7 @@ def backoff_retry(func, *args, **kwargs):
 
 # ---------- 수집기 ----------
 class SlackBackup:
-    def __init__(self, token: str, outdir: str, types: List[str], conversation_id: str = None, oldest: float = None, latest: float = None):
+    def __init__(self, token: str, outdir: str, types: List[str], conversation_id: str = None, oldest: float = None, latest: float = None, force: bool = False):
         self.client = WebClient(token=token)
         self.token = token
         self.outdir = pathlib.Path(outdir)
@@ -93,6 +99,7 @@ class SlackBackup:
         self.conversation_id = conversation_id
         self.oldest = oldest
         self.latest = latest
+        self.force = force
         self.user_map = {}  # user_id -> profile dict
 
     def load_users(self):
@@ -276,11 +283,31 @@ class SlackBackup:
             except Exception as e:
                 print(f"[WARN] Failed to write {date_file}: {e}", file=sys.stderr)
 
-    def _process_conversation(self, conv: dict, metadata_lists: dict):
-        """하나의 대화를 처리합니다."""
+    def _is_already_backed_up(self, conversation_dir: pathlib.Path) -> bool:
+        """대화가 이미 백업되었는지 확인합니다.
+
+        폴더가 존재하고 .json 파일이 하나 이상 있으면 백업된 것으로 간주합니다.
+        """
+        if not conversation_dir.exists():
+            return False
+        # 폴더 내에 .json 파일이 있는지 확인
+        json_files = list(conversation_dir.glob("*.json"))
+        return len(json_files) > 0
+
+    def _process_conversation(self, conv: dict, metadata_lists: dict) -> bool:
+        """하나의 대화를 처리합니다.
+
+        Returns:
+            bool: 대화가 처리되었으면 True, 스킵되었으면 False
+        """
         channel_id = conv["id"]
         label = self.conv_label(conv)
         conversation_dir = self.outdir / label
+
+        # 이미 백업된 대화인지 확인 (force 옵션이 없을 때만)
+        if not self.force and self._is_already_backed_up(conversation_dir):
+            return False  # 스킵됨
+
         conversation_dir.mkdir(parents=True, exist_ok=True)
 
         # 메시지 수집
@@ -292,6 +319,7 @@ class SlackBackup:
 
         # 메시지를 날짜별로 저장
         self._save_messages_by_date(messages, conversation_dir)
+        return True  # 처리됨
 
     def _save_metadata(self, metadata_lists: dict):
         """메타데이터를 병합하여 파일로 저장합니다."""
@@ -350,8 +378,16 @@ class SlackBackup:
         }
 
         # 각 대화 처리
+        processed_count = 0
+        skipped_count = 0
         for conv in tqdm(conversations, desc="Conversations"):
-            self._process_conversation(conv, metadata_lists)
+            if self._process_conversation(conv, metadata_lists):
+                processed_count += 1
+            else:
+                skipped_count += 1
+
+        # 결과 출력
+        print(f"\n백업 완료: {processed_count}개 처리, {skipped_count}개 스킵 (이미 백업됨)")
 
         # 메타데이터 저장
         self._save_metadata(metadata_lists)
@@ -363,6 +399,7 @@ def parse_args():
     ap.add_argument("--conversation-id", default=None, help="Specific conversation ID to backup (channel/DM/group - if provided, only this conversation will be backed up)")
     ap.add_argument("--oldest", type=float, default=None, help="Oldest ts (float seconds). Omit for all")
     ap.add_argument("--latest", type=float, default=None, help="Latest ts (float seconds). Omit for now")
+    ap.add_argument("--force", action="store_true", help="Force re-backup even if already backed up")
     return ap.parse_args()
 
 if __name__ == "__main__":
@@ -377,7 +414,8 @@ if __name__ == "__main__":
         [t.strip() for t in args.types.split(",") if t.strip()],
         conversation_id=getattr(args, 'conversation_id', None),
         oldest=args.oldest,
-        latest=args.latest
+        latest=args.latest,
+        force=args.force
     )
     backup.run()
 
